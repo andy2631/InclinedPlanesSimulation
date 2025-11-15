@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inclined Plane + Pulley Simulator (Y12 Physics)</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8; --accent:#22d3ee; --border:#1f2937; --card:#0b1220; --warning:#f59e0b; --danger:#ef4444; --primary:#7c3aed; }
+    *{box-sizing:border-box}html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:radial-gradient(1200px 600px at 10% 10%,#0b1220,var(--bg))}
+    .app-header{padding:24px 24px 8px;border-bottom:1px solid var(--border)}.app-header h1{margin:0;font-size:1.8rem}.subtitle{margin:6px 0 0;color:var(--muted)}
+    .layout{display:grid;grid-template-columns:380px 1fr 420px;gap:16px;padding:16px}
+    @media (max-width:1100px){.layout{grid-template-columns:1fr}}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}.panel h2{margin-top:0}
+    .controls .control-group{margin-bottom:16px}.controls h3{margin-bottom:8px}.controls .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .controls .toggle{display:flex;align-items:center;gap:8px;color:var(--muted)}
+    .field{display:grid;grid-template-columns:1fr 1fr 110px;gap:8px;align-items:center;margin-bottom:12px}
+    .field label{color:var(--muted)}.field input[type=range]{width:100%}
+    .field input[type=number]{width:110px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)}
+    .hint{color:var(--muted);margin:6px 0 12px}.radios label{color:var(--muted)}.hidden{display:none}
+    .diagram .caption{color:var(--muted);margin-top:8px}
+    .legend{padding:2px 8px;border-radius:999px;margin-right:6px;font-size:.9rem}
+    .legend.gravity{background:rgba(239,68,68,.2);color:var(--danger)}
+    .legend.normal{background:rgba(34,197,94,.15);color:#22c55e}
+    .legend.friction{background:rgba(245,158,11,.15);color:var(--warning)}
+    .legend.tension{background:rgba(124,58,237,.15);color:var(--primary)}
+    .legend.components{background:rgba(34,211,238,.15);color:var(--accent)}
+    .results .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    @media (max-width:1100px){.results .grid{grid-template-columns:1fr 1fr}}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+    .card h4{margin:0 0 6px;font-weight:600;color:var(--muted)}.card div{font-size:1.2rem}
+    .explain{color:var(--muted);margin-top:10px}
+    .app-footer{padding:12px 16px;color:var(--muted);text-align:center}
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Inclined Plane + Pulley Simulator</h1>
+    <p class="subtitle">Interactive HTML5/JavaScript simulation for Year 12 Physics</p>
+  </header>
+
+  <main class="layout">
+    <!-- Controls -->
+    <section class="panel controls">
+      <h2>Controls</h2>
+
+      <div class="control-group">
+        <h3>System Parameters</h3>
+
+        <div class="row">
+          <label class="toggle">
+            <input type="checkbox" id="includeM2" checked />
+            Include hanging mass m<sub>2</sub> (pulley)
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="m1">Slope mass m<sub>1</sub> (kg)</label>
+          <input type="range" id="m1" min="0.1" max="50" step="0.1" value="5" />
+          <input type="number" id="m1-num" min="0.1" max="50" step="0.1" value="5" />
+        </div>
+
+        <div class="field">
+          <label for="theta">Slope angle θ (degrees)</label>
+          <input type="range" id="theta" min="0" max="60" step="0.5" value="25" />
+          <input type="number" id="theta-num" min="0" max="60" step="0.5" value="25" />
+        </div>
+
+        <div class="field m2-only">
+          <label for="m2">Hanging mass m<sub>2</sub> (kg)</label>
+          <input type="range" id="m2" min="0" max="50" step="0.1" value="3" />
+          <input type="number" id="m2-num" min="0" max="50" step="0.1" value="3" />
+        </div>
+
+        <p class="hint m2-only">
+          Max m₂ to maintain Fgx > Ff + Fg2:
+          <span id="m2maxText">—</span> kg
+        </p>
+
+        <div class="field">
+          <label for="g">Gravity g (m/s²)</label>
+          <input type="range" id="g" min="1" max="20" step="0.01" value="9.81" />
+          <input type="number" id="g-num" min="1" max="20" step="0.01" value="9.81" />
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Friction</h3>
+        <div class="field">
+          <label for="FfFixed">Fixed F<sub>f</sub> (N, <b>up-slope</b>, always positive)</label>
+          <input type="range" id="FfFixed" min="0" max="500" step="0.1" value="0" />
+          <input type="number" id="FfFixed-num" min="0" max="500" step="0.1" value="0" />
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Kinematics</h3>
+        <div class="row radios">
+          <label><input type="radio" name="kinMode" value="time" checked /> Control by <b>Time</b></label>
+          <label><input type="radio" name="kinMode" value="distance" /> Control by <b>Distance</b></label>
+          <label><input type="radio" name="kinMode" value="vf" /> Control by <b>Final velocity</b></label>
+        </div>
+        <p class="hint">Sign convention: Positive is <b>up the slope</b> for m<sub>1</sub>.</p>
+        <div class="field">
+          <label for="v0">Initial velocity v<sub>0</sub> (m/s, up-slope +)</label>
+          <input type="range" id="v0" min="-20" max="20" step="0.1" value="0" />
+          <input type="number" id="v0-num" min="-20" max="20" step="0.1" value="0" />
+        </div>
+        <div class="field kin time">
+          <label for="t">Time t (s)</label>
+          <input type="range" id="t" min="0" max="20" step="0.01" value="5" />
+          <input type="number" id="t-num" min="0" max="20" step="0.01" value="5" />
+        </div>
+        <div class="field kin distance hidden">
+          <label for="s">Distance s (m, along slope)</label>
+          <input type="range" id="s" min="0" max="100" step="0.01" value="10" />
+          <input type="number" id="s-num" min="0" max="100" step="0.01" value="10" />
+        </div>
+        <div class="field kin vf hidden">
+          <label for="vf">Final velocity v (m/s)</label>
+          <input type="range" id="vf" min="-50" max="50" step="0.1" value="0" />
+          <input type="number" id="vf-num" min="-50" max="50" step="0.1" value="0" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Diagram -->
+    <section class="panel diagram">
+      <h2>Diagram</h2>
+      <canvas id="simCanvas" width="900" height="520" aria-label="Inclined plane and pulley diagram"></canvas>
+      <p class="caption">Colour legend:
+        <span class="legend gravity">Gravity</span>
+        <span class="legend normal">Normal</span>
+        <span class="legend friction">Friction (up-slope)</span>
+        <span class="legend tension">Tension</span>
+        <span class="legend components">Components (F<sub>gx</sub>, F<sub>gy</sub>)</span>
+      </p>
+    </section>
+
+    <!-- Results -->
+    <section class="panel results">
+      <h2>Calculated Values</h2>
+      <div class="grid">
+        <div class="card"><h4>F<sub>gx</sub> (down slope)</h4><div id="outFgx">–</div></div>
+        <div class="card"><h4>F<sub>gy</sub> (into slope)</h4><div id="outFgy">–</div></div>
+        <div class="card"><h4>F<sub>n</sub> (normal)</h4><div id="outFn">–</div></div>
+        <div class="card"><h4>F<sub>f</sub> (friction, up-slope)</h4><div id="outFf">–</div></div>
+        <div class="card"><h4>T (tension)</h4><div id="outT">–</div></div>
+        <div class="card"><h4>a (net acceleration)</h4><div id="outA">–</div></div>
+        <div class="card"><h4>v (final velocity)</h4><div id="outV">–</div></div>
+        <div class="card"><h4>s (distance)</h4><div id="outS">–</div></div>
+        <div class="card"><h4>t (time)</h4><div id="outTtime">–</div></div>
+      </div>
+      <p class="explain">
+        With m₂: a = (m₂g − m₁g sinθ + Ff)/(m₁ + m₂), T = m₂ (g − a)<br/>
+        Without m₂: a = (−m₁g sinθ + Ff)/m₁, T = 0<br/>
+        Constraint when m₂ is included: m₁g sinθ &gt; Ff + m₂g ⇒ m₂ ≤ (m₁g sinθ − Ff)/g
+      </p>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Built for inquiry-based learning: adjust variables and observe the system’s response in real-time.</p>
+  </footer>
+
+  <script>
+    (function(){
+      const gEl = {
+        includeM2: byId('includeM2'),
+        m1: byId('m1'), m1n: byId('m1-num'),
+        theta: byId('theta'), thetan: byId('theta-num'),
+        m2: byId('m2'), m2n: byId('m2-num'),
+        g: byId('g'), gn: byId('g-num'),
+        FfFixed: byId('FfFixed'), FfFixedn: byId('FfFixed-num'),
+        v0: byId('v0'), v0n: byId('v0-num'),
+        t: byId('t'), tn: byId('t-num'),
+        s: byId('s'), sn: byId('s-num'),
+        vf: byId('vf'), vfn: byId('vf-num'),
+        kinMode: Array.from(document.querySelectorAll('input[name=kinMode]')),
+        out: {
+          Fgx: byId('outFgx'), Fgy: byId('outFgy'), Fn: byId('outFn'), Ff: byId('outFf'),
+          T: byId('outT'), A: byId('outA'), V: byId('outV'), S: byId('outS'), Ttime: byId('outTtime')
+        },
+        canvas: byId('simCanvas'),
+        m2maxText: byId('m2maxText')
+      };
+
+      // Pair sync
+      linkPair(gEl.m1, gEl.m1n); linkPair(gEl.theta, gEl.thetan);
+      linkPair(gEl.m2, gEl.m2n); linkPair(gEl.g, gEl.gn);
+      linkPair(gEl.FfFixed, gEl.FfFixedn); linkPair(gEl.v0, gEl.v0n);
+      linkPair(gEl.t, gEl.tn); linkPair(gEl.s, gEl.sn); linkPair(gEl.vf, gEl.vfn);
+
+      // Mode visibility
+      gEl.kinMode.forEach(r => r.addEventListener('change', () => {
+        const mode = currentKinMode();
+        document.querySelectorAll('.kin').forEach(el => el.classList.add('hidden'));
+        const target = document.querySelector('.kin.' + mode);
+        if (target) target.classList.remove('hidden');
+        update();
+      }));
+      document.querySelectorAll('.kin').forEach(el => el.classList.add('hidden'));
+      const first = document.querySelector('.kin.time'); if (first) first.classList.remove('hidden');
+
+      // Show/hide m2 controls
+      gEl.includeM2.addEventListener('change', () => {
+        document.querySelectorAll('.m2-only').forEach(el => {
+          el.style.display = gEl.includeM2.checked ? '' : 'none';
+        });
+        update();
+      });
+      document.querySelectorAll('.m2-only').forEach(el => {
+        el.style.display = gEl.includeM2.checked ? '' : 'none';
+      });
+
+      // Update on any input
+      document.querySelectorAll('input').forEach(el => el.addEventListener('input', update));
+
+      const ctx = gEl.canvas.getContext('2d');
+
+      function update(){
+        // Cap m2 so Fgx > Ff + m2*g   (friction is fixed, not mass-dependent)
+        const m1  = parseFloat(gEl.m1n.value || '0');
+        const g   = parseFloat(gEl.gn.value || '9.81');
+        const th  = parseFloat(gEl.thetan.value || '0') * Math.PI/180;
+        const Ff  = Math.max(0, parseFloat(gEl.FfFixedn.value || '0')); // up-slope, positive CONSTANT
+        const FgxMag = m1 * g * Math.sin(th);
+
+        const m2max = Math.max(0, (FgxMag - Ff) / g);
+        if (gEl.includeM2.checked) {
+          const maxStr = m2max.toFixed(3);
+          gEl.m2.max = maxStr; gEl.m2n.max = maxStr;
+          const m2cur = clamp(parseFloat(gEl.m2n.value || '0'), 0, m2max);
+          gEl.m2.value = m2cur.toFixed(3);
+          gEl.m2n.value = m2cur.toFixed(3);
+          if (gEl.m2maxText) gEl.m2maxText.textContent = maxStr;
+        } else { if (gEl.m2maxText) gEl.m2maxText.textContent = '—'; }
+
+        const p = readParams();
+        const phys = computePhysics(p);
+        const kin  = computeKinematics(p, phys);
+
+        renderOutputs(p, phys, kin);
+        drawScene(p, phys, kin);
+      }
+      update();
+
+      // Physics
+      function readParams(){
+        const mode = currentKinMode();
+        return {
+          includeM2: gEl.includeM2.checked,
+          m1: parseFloat(gEl.m1n.value),
+          m2: parseFloat(gEl.m2n.value),
+          thetaDeg: parseFloat(gEl.thetan.value),
+          theta: parseFloat(gEl.thetan.value) * Math.PI/180,
+          g: parseFloat(gEl.gn.value),
+          FfFixedMag: Math.max(0, parseFloat(gEl.FfFixedn.value)), // up-slope, CONSTANT
+          v0: parseFloat(gEl.v0n.value),
+          mode,
+          t: parseFloat(gEl.tn.value),
+          sIn: parseFloat(gEl.sn.value),
+          vfIn: parseFloat(gEl.vfn.value),
+        };
+      }
+
+      function computePhysics(p){
+        const {m1, theta, g} = p;
+        const Fgx = m1 * g * Math.sin(theta); // down-slope component magnitude
+        const Fgy = m1 * g * Math.cos(theta); // into slope
+        const Fn  = Fgy;
+        const Ff  = p.FfFixedMag;             // up-slope, fixed, NOT mass-dependent
+
+        const hasM2 = p.includeM2 && p.m2 > 0;
+
+        // Net acceleration along +x (up-slope)
+        let a, T;
+        if (hasM2) {
+          a = (p.m2 * g - Fgx + Ff) / (m1 + p.m2);
+          T = p.m2 * (g - a);
+        } else {
+          a = (-Fgx + Ff) / m1;
+          T = 0;
+        }
+
+        return {Fgx, Fgy, Fn, Ff, a, T, hasM2};
+      }
+
+      function computeKinematics(p, phys){
+        const v0 = p.v0, a = phys.a;
+        let v, s, t;
+        if (p.mode === 'time'){
+          t = Math.max(0, p.t);
+          v = v0 + a*t;
+          s = v0*t + 0.5*a*t*t;
+        } else if (p.mode === 'distance'){
+          s = p.sIn;
+          if (Math.abs(a) < 1e-9){
+            t = (Math.abs(v0) < 1e-9) ? 0 : s / v0;
+          } else {
+            const A = 0.5*a, B = v0, C = -s, disc = B*B - 4*A*C;
+            t = disc < 0 ? 0 : (-B + Math.sqrt(disc)) / (2*A);
+            if (t < 0) t = (-B - Math.sqrt(disc)) / (2*A);
+            if (!isFinite(t) || t < 0) t = 0;
+          }
+          v = v0 + a*t;
+        } else {
+          v = p.vfIn;
+          t = Math.max(0, Math.abs(a) < 1e-9 ? 0 : (v - v0)/a);
+          s = v0*t + 0.5*a*t*t;
+        }
+        return {v, s, t};
+      }
+
+      function renderOutputs(p, phys, kin){
+        const fmt = x => isFinite(x) ? x.toFixed(3) : '—';
+        gEl.out.Fgx.textContent    = fmt(phys.Fgx) + ' N';
+        gEl.out.Fgy.textContent    = fmt(phys.Fgy) + ' N';
+        gEl.out.Fn.textContent     = fmt(phys.Fn)  + ' N';
+        gEl.out.Ff.textContent     = fmt(phys.Ff)  + ' N';
+        gEl.out.T.textContent      = phys.hasM2 ? (fmt(phys.T) + ' N') : '—';
+        gEl.out.A.textContent      = fmt(phys.a)   + ' m/s²';
+        gEl.out.V.textContent      = fmt(kin.v)    + ' m/s';
+        gEl.out.S.textContent      = fmt(kin.s)    + ' m';
+        gEl.out.Ttime.textContent  = fmt(kin.t)    + ' s';
+      }
+
+      // Drawing
+      function drawScene(p, phys, kin){
+        const w = gEl.canvas.width, h = gEl.canvas.height;
+        const ctx = gEl.canvas.getContext('2d');
+        ctx.clearRect(0,0,w,h);
+
+        const margin = 40, groundY = h - margin, slopeLen = Math.min(w*0.55, 500), theta = p.theta;
+        const x0 = margin + 60, y0 = groundY;
+        const x1 = x0 + slopeLen * Math.cos(theta), y1 = y0 - slopeLen * Math.sin(theta);
+
+        const ratio = 0.55;
+        const m1x = x0 + (slopeLen * ratio) * Math.cos(theta);
+        const m1y = y0 - (slopeLen * ratio) * Math.sin(theta);
+        const boxW = 54, boxH = 36;
+
+        // Slope & ground
+        ctx.strokeStyle = '#334155'; ctx.lineWidth = 3;
+        drawLine(x0, y0, x1, y1);
+        drawLine(x0-40, y0, x0, y0);
+
+        // Pulley + m2 if present
+        let pulleyX = x1, pulleyY = y1, anchorX, anchorY, m2x, m2y;
+        if (phys.hasM2){
+          ctx.fillStyle = '#1f2937'; ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+          drawCircle(pulleyX, pulleyY, 18, true);
+
+          const anchorOffset = 28;
+          anchorX = m1x + anchorOffset * Math.cos(theta);
+          anchorY = m1y - anchorOffset * Math.sin(theta);
+          ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 3;
+          drawLine(anchorX, anchorY, pulleyX, pulleyY);
+
+          m2x = pulleyX; m2y = pulleyY + 150;
+          drawLine(pulleyX, pulleyY, m2x, m2y - 18);
+
+          drawBox(m2x-25, m2y-25, 50, 50);
+          labelText(`m₂ = ${p.m2.toFixed(2)} kg`, m2x, m2y + 40);
+        }
+
+        // m1 box & label
+        drawBoxOnSlope(m1x, m1y, boxW, boxH, theta);
+        labelText(`m₁ = ${p.m1.toFixed(2)} kg`, m1x, m1y - 40);
+
+        // Force scale (px per N)
+        const maxForce = Math.max(1,
+          Math.abs(phys.Fgx), Math.abs(phys.Fgy), Math.abs(phys.Fn),
+          Math.abs(phys.Ff), phys.hasM2 ? Math.abs(phys.T) : 0,
+          phys.hasM2 ? p.m2*p.g : 0, p.m1*p.g
+        );
+        const scale = 140 / maxForce; // slightly larger for clarity
+
+        // m1: Gravity (down)
+        drawArrow(m1x, m1y, 0, p.m1 * p.g * scale, '#ef4444', null, 3);
+        labelVector('m₁g', m1x, m1y + p.m1 * p.g * scale + 14, '#ef4444');
+
+        // Components (cyan, dashed)
+        // Fgy into surface (unchanged)
+        const nvec = rotateVec(0, phys.Fgy * scale, -theta);
+        drawArrow(m1x, m1y, nvec.x, nvec.y, '#22d3ee', [6,4], 3);
+        labelVector('Fgy', m1x + nvec.x + 6, m1y + nvec.y - 6, '#22d3ee');
+
+        // Fgx MUST be DOWN the slope (negative along-slope when rotated by -theta)
+        const fgxLen = 1.2 * phys.Fgx * scale;           // keep visual emphasis
+        const gxvec  = rotateVec(-fgxLen, 0, -theta);     // NEGATIVE => down the slope
+        drawArrow(m1x, m1y, gxvec.x, gxvec.y, '#22d3ee', [6,4], 4);
+        labelVector('Fgx', m1x + gxvec.x + 8, m1y + gxvec.y - 8, '#22d3ee');
+
+        // Normal (green, away from surface)
+        const nUp = rotateVec(0, -phys.Fn * scale, -theta);
+        drawArrow(m1x, m1y, nUp.x, nUp.y, '#22c55e', null, 3);
+        labelVector('Fn', m1x + nUp.x + 6, m1y + nUp.y - 8, '#22c55e');
+
+        // Friction (orange) — ALWAYS up-slope (positive), fixed (NOT mass-dependent)
+        const fvec = rotateVec(phys.Ff * scale, 0, -theta);
+        drawArrow(m1x, m1y, fvec.x, fvec.y, '#f59e0b', null, 3);
+        labelVector('Ff', m1x + fvec.x + 6, m1y + fvec.y - 8, '#f59e0b');
+
+        // Tension & m2 forces (if present)
+        if (phys.hasM2){
+          const tvec = rotateVec(phys.T * scale, 0, -theta);
+          drawArrow(anchorX, anchorY, tvec.x, tvec.y, '#7c3aed', null, 3);
+          labelVector('T', anchorX + tvec.x + 6, anchorY + tvec.y - 8, '#7c3aed');
+
+          drawArrow(m2x, m2y, 0, p.m2 * p.g * scale, '#ef4444', null, 3);
+          labelVector('m₂g', m2x + 6, m2y + p.m2 * p.g * scale + 14, '#ef4444');
+
+          drawArrow(m2x, m2y, 0, -phys.T * scale, '#7c3aed', null, 3);
+          labelVector('T', m2x + 6, m2y - phys.T * scale - 8, '#7c3aed');
+        }
+
+        // Angle & motion annotations
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '14px sans-serif';
+        ctx.save(); ctx.translate(x0, y0); ctx.rotate(-theta);
+        ctx.fillText(`θ = ${p.thetaDeg.toFixed(1)}°`, 30, -20);
+        ctx.restore();
+
+        labelText(`a = ${phys.a.toFixed(3)} m/s²`, x0 + 10, y0 - 80);
+        labelText(`v₀ = ${p.v0.toFixed(2)} m/s`, x0 + 10, y0 - 60);
+        labelText(`v = ${kin.v.toFixed(2)} m/s`, x0 + 10, y0 - 40);
+        labelText(`s = ${kin.s.toFixed(2)} m in t = ${kin.t.toFixed(2)} s`, x0 + 10, y0 - 20);
+      }
+
+      // helpers
+      function currentKinMode(){
+        const checked = document.querySelector('input[name=kinMode]:checked');
+        return checked ? checked.value : 'time';
+      }
+      function byId(id){ return document.getElementById(id); }
+      function linkPair(range, number){
+        if (!range || !number) return;
+        function sync(from, to){ to.value = from.value; }
+        range.addEventListener('input', () => sync(range, number));
+        number.addEventListener('input', () => sync(number, range));
+      }
+      function clamp(x, min, max){ return Math.min(max, Math.max(min, x)); }
+
+      function drawLine(x1,y1,x2,y2){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+      function drawCircle(x,y,r,fill=false){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); fill?ctx.fill():ctx.stroke(); }
+      function drawBoxOnSlope(cx, cy, w, h, theta){
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(-theta);
+        ctx.fillStyle = '#0ea5e9'; ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.rect(-w/2, -h/2, w, h); ctx.fill(); ctx.stroke(); ctx.restore();
+      }
+      function drawBox(x, y, w, h){
+        ctx.fillStyle = '#0ea5e9'; ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
+      }
+      function labelText(txt, x, y){
+        ctx.fillStyle = '#e5e7eb'; ctx.font = '14px sans-serif'; ctx.fillText(txt, x, y);
+      }
+      function labelVector(txt, x, y, color){
+        ctx.fillStyle = color || '#e5e7eb'; ctx.font = '12px sans-serif'; ctx.fillText(txt, x, y);
+      }
+      function drawArrow(x, y, dx, dy, color='#e5e7eb', dash=null, width=3){
+        const len = Math.hypot(dx, dy); if (len < 1e-6) return;
+        ctx.save();
+        ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width;
+        if (dash) ctx.setLineDash(dash); else ctx.setLineDash([]);
+        drawLine(x, y, x+dx, y+dy);
+        const head = Math.min(16, Math.max(8, len*0.12));
+        const angle = Math.atan2(dy, dx);
+        const hx = x + dx, hy = y + dy;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(hx - head*Math.cos(angle - Math.PI/6), hy - head*Math.sin(angle - Math.PI/6));
+        ctx.lineTo(hx - head*Math.cos(angle + Math.PI/6), hy - head*Math.sin(angle + Math.PI/6));
+        ctx.lineTo(hx, hy); ctx.fill(); ctx.restore();
+      }
+      function rotateVec(dx, dy, ang){
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        return { x: dx*ca - dy*sa, y: dx*sa + dy*ca };
+      }
+    })();
+  </script>
+</body>
+</html>
